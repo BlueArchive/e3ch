@@ -4,6 +4,9 @@ import (
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/mvcc/mvccpb"
 	"strings"
+	"fmt"
+	"errors"
+	"context"
 )
 
 // list a directory
@@ -15,29 +18,29 @@ func (clt *EtcdHRCHYClient) List(key string) ([]*Node, error) {
 	// directory start with /
 	dir := key + "/"
 
-	txn := clt.client.Txn(clt.ctx)
-	// make sure the list key is a directory
-	txn.If(
-		clientv3.Compare(
-			clientv3.Value(key),
-			"=",
-			clt.dirValue,
-		),
-	).Then(
-		clientv3.OpGet(dir, clientv3.WithPrefix()),
-	)
+	//txn := clt.client.Txn(clt.ctx)
+	//// make sure the list key is a directory
+	//txn.If(
+	//	clientv3.Compare(
+	//		clientv3.Value(key),
+	//		"=",
+	//		clt.dirValue,
+	//	),
+	//).Then(
+	//	clientv3.OpGet(dir, clientv3.WithPrefix()),
+	//)
+	//
+	//txnResp, err := txn.Commit()
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	txnResp, err := txn.Commit()
+	resp, err := clt.client.Get(context.Background(), dir, clientv3.WithPrefix())
 	if err != nil {
-		return nil, err
-	}
-
-	if !txnResp.Succeeded {
-		return nil, ErrorListKey
+		return nil, errors.New(fmt.Sprintf("can only list a directory: %v", err))
 	} else {
-		if len(txnResp.Responses) > 0 {
-			rangeResp := txnResp.Responses[0].GetResponseRange()
-			return clt.list(dir, rangeResp.Kvs)
+		if resp.Count > 0 {
+			return clt.list(dir, resp.Kvs)
 		} else {
 			// empty directory
 			return []*Node{}, nil
